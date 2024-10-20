@@ -1,9 +1,10 @@
 import pandas as pd
 import re
 import pycountry
+import numpy as np
 
 # Load the dataset
-file_path = r'data/Rolex Chrono24.xlsx'
+file_path = r'data\Chrono24_151024_excel.xlsx'
 df_og = pd.read_excel(file_path)
 df = df_og.copy()
 
@@ -43,6 +44,13 @@ def extract_reference_number(x):
     return ref_number.group(0) if ref_number else "No Reference"
 
 df['Reference number'] = df['Reference number'].apply(extract_reference_number)
+
+
+def extract_confirmed_reference_number(x):
+    ref_number = re.search(r'\b\d{4,}[A-Za-z0-9\-]*\b', str(x))
+    return ref_number.group(0) if ref_number else "No Reference"
+
+df['Confirm Reference Number '] = df['Confirm Reference Number '].apply(extract_reference_number)
 
 #--------------------------------------------------------------------------------------------------------------------------------
 
@@ -166,6 +174,8 @@ def extract_condition_details(val):
 df['Condition Details'] = df['Condition'].apply(extract_condition_details)
 df['Condition'] = df['Condition'].apply(extract_main_condition)
 
+df['Condition'] = df['Condition'].fillna('Unknown')
+
 #--------------------------------------------------------------------------------------------------------------------------------
 
 def extract_box(val):
@@ -213,7 +223,7 @@ df[['Country', 'City']] = df['Location'].apply(split_location)
 
 valid_countries = [country.name for country in pycountry.countries]
 
-# Ensure both empty strings and NaNs are handled in validation functions
+
 def is_valid_country(country):
     country_str = str(country).strip().lower()  # Convert to lowercase for case-insensitive comparison
     if country_str in [c.lower() for c in valid_countries]:
@@ -332,7 +342,6 @@ df['shipping'] = df['shipping'].apply(clean_shipping_price)
 df['Seller Information'] = df['Seller Information'].fillna('Unknown')
 
 #--------------------------------------------------------------------------------------------------------------------------------
-
 def clean_base_caliber(val):
     match = re.search(r'\b\d{4}\b', str(val))
     if match:
@@ -343,8 +352,62 @@ df['Base caliber'] = df['Base caliber'].apply(clean_base_caliber)
 
 #--------------------------------------------------------------------------------------------------------------------------------
 
+valid_colors = ['Green', 'Black', 'White', 'Silver', 'Brown', np.nan, 'Gold', 'Blue',
+                'Champagne', 'Grey', 'Pink', 'Turquoise', 'Purple', 'Mother of pearl',
+                'Bronze', 'Meteorite', 'Red', 'Yellow', 'Lines', 'Orange',
+                'Bordeaux', 'Skeletonized']
+
+
+def fix_dial_color(row):
+    dial_color = row['Dial']
+
+    # If the dial color is valid, return it
+    if dial_color in valid_colors:
+        return dial_color
+
+    other_columns = ['Case material', 'Bracelet material']
+    for col in other_columns:
+        if row[col] in valid_colors:
+            return row[col]
+
+    return 'Unknown'
+
+df['Dial'] = df.apply(fix_dial_color, axis=1)
+
+df['Dial'] = df['Dial'].fillna('Unknown')
+#--------------------------------------------------------------------------------------------------------------------------------
+
+valid_numerals = ['No numerals', 'Arabic numerals', 'Roman numerals', np.nan]
+
+def fix_dial_numerals(row):
+    dial_numerals = row['Dial numerals']
+
+    if dial_numerals in valid_numerals:
+        return dial_numerals
+
+
+    other_columns = ['Case material', 'Bracelet material']  # Example of other columns to check
+    for col in other_columns:
+        if row[col] in valid_numerals:
+            return row[col]
+
+
+    return np.nan
+
+df['Dial numerals'] = df.apply(fix_dial_numerals, axis=1)
+
+df['Dial numerals'] = df['Dial numerals'].replace({
+    'No numerals': 'None',
+    'Arabic numerals': 'Arabic',
+    'Roman numerals': 'Roman'
+})
+
+df['Dial numerals'] = df['Dial numerals'].fillna('Unknown')
+#--------------------------------------------------------------------------------------------------------------------------------
+
 df = df.drop(columns=['Scope of delivery'])
 df = df.drop(columns=['Location'])
+df.rename(columns={'Seller Information': 'Seller Name'}, inplace=True)
 
 #--------------------------------------------------------------------------------------------------------------------------------
 
