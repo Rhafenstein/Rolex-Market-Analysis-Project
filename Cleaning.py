@@ -10,9 +10,8 @@ df = df_og.copy()
 
 #--------------------------------------------------------------------------------------------------------------------------------
 
-df['Model'] = df['Model'].fillna('Unknown')
-
-df['Model'] = df['Model'].replace({
+# Fill missing values and replace specific Model names
+df['Model'] = df['Model'].fillna('Unknown').replace({
     'Submariner (No Date)': 'Submariner',
     '6066': 'Oysterdate Precision',
     '116655': 'Yacht-Master 40',
@@ -39,21 +38,17 @@ df['Model'] = df['Model'].replace({
 
 #--------------------------------------------------------------------------------------------------------------------------------
 
+# Extract reference numbers
 def extract_reference_number(x):
     ref_number = re.search(r'\b\d{4,}[A-Za-z0-9\-]*\b', str(x))
     return ref_number.group(0) if ref_number else "No Reference"
 
 df['Reference number'] = df['Reference number'].apply(extract_reference_number)
-
-
-def extract_confirmed_reference_number(x):
-    ref_number = re.search(r'\b\d{4,}[A-Za-z0-9\-]*\b', str(x))
-    return ref_number.group(0) if ref_number else "No Reference"
-
 df['Confirm Reference Number '] = df['Confirm Reference Number '].apply(extract_reference_number)
 
 #--------------------------------------------------------------------------------------------------------------------------------
 
+# Correct movement values
 movement_patterns = {
     'Automatic': r'(?i)\bauto(?:matic)?|self-winding\b',
     'Manual winding': r'(?i)\bmanual(?: winding| wind)?\b',
@@ -81,6 +76,7 @@ df['Movement'] = df.apply(correct_movement, axis=1)
 
 #--------------------------------------------------------------------------------------------------------------------------------
 
+# Correct case material values
 valid_case_materials = [
     'Steel', 'Rose gold', 'Gold/Steel', 'White gold', 'Yellow gold',
     'Platinum', 'Red gold', 'Titanium', 'Ceramic', 'Rubber',
@@ -105,10 +101,9 @@ def correct_case_material(row):
 
 df['Case material'] = df.apply(correct_case_material, axis=1)
 
-df['Case material'] = df['Case material'].fillna('Unknown')
-
 #--------------------------------------------------------------------------------------------------------------------------------
 
+# Correct bracelet material values
 valid_bracelet_materials = [
     'Steel', 'Rose gold', 'Gold/Steel', 'White gold', 'Yellow gold',
     'Platinum', 'Red gold', 'Titanium', 'Ceramic', 'Rubber',
@@ -134,10 +129,9 @@ def correct_bracelet_material(row):
 
 df['Bracelet material'] = df.apply(correct_bracelet_material, axis=1)
 
-df['Bracelet material'] = df['Bracelet material'].fillna('Unknown')
-
 #--------------------------------------------------------------------------------------------------------------------------------
 
+# Correct year values
 year_pattern = r'\b(19[0-9]{2}|20[0-2][0-9])\b'
 
 def is_valid_year(val):
@@ -161,6 +155,7 @@ df['Year of production'] = df.apply(correct_year, axis=1)
 
 #--------------------------------------------------------------------------------------------------------------------------------
 
+# Clean condition details
 def extract_main_condition(val):
     val = str(val).split('\n')[0].strip()
     return re.sub(r'\s*\(.*?\)', '', val).strip()
@@ -174,25 +169,22 @@ def extract_condition_details(val):
 df['Condition Details'] = df['Condition'].apply(extract_condition_details)
 df['Condition'] = df['Condition'].apply(extract_main_condition)
 
-df['Condition'] = df['Condition'].fillna('Unknown')
-
+df['Condition'] = df['Condition'].replace(['nan', 'NaN'], 'Unknown').fillna('Unknown')
 #--------------------------------------------------------------------------------------------------------------------------------
 
+# Extract box and papers info
 def extract_box(val):
-    if 'Original box' in str(val):
-        return 'Yes'
-    return 'No'
+    return 'Yes' if 'Original box' in str(val) else 'No'
 
 def extract_papers(val):
-    if 'original papers' in str(val):
-        return 'Yes'
-    return 'No'
+    return 'Yes' if 'original papers' in str(val) else 'No'
 
 df['Box'] = df['Scope of delivery'].apply(extract_box)
 df['Papers'] = df['Scope of delivery'].apply(extract_papers)
 
 #--------------------------------------------------------------------------------------------------------------------------------
 
+# Clean gender values
 def clean_gender(row):
     for col in row.index:
         match = re.search(r"Men's watch/Unisex|Women's watch", str(row[col]))
@@ -204,114 +196,53 @@ df['Gender'] = df.apply(clean_gender, axis=1)
 
 #--------------------------------------------------------------------------------------------------------------------------------
 
+# Split location into Country and City
 def split_location(val):
-    # Try to split based on comma
-    parts = str(val).split(',', 1)  # Split at the first comma only
-    if len(parts) == 2:
-        # Strip leading/trailing spaces from both parts
-        country = parts[0].strip()
-        city = parts[1].strip()
-    else:
-        # If no comma is found, we mark the country as the location and city as 'Unknown'
-        country = parts[0].strip()
-        city = 'Unknown'
-
+    parts = str(val).split(',', 1)
+    country = parts[0].strip()
+    city = parts[1].strip() if len(parts) == 2 else 'Unknown'
     return pd.Series([country, city])
 
-# Apply the function to create 'Country' and 'City' columns
 df[['Country', 'City']] = df['Location'].apply(split_location)
 
+# Validate country and city values
 valid_countries = [country.name for country in pycountry.countries]
 
-
 def is_valid_country(country):
-    country_str = str(country).strip().lower()  # Convert to lowercase for case-insensitive comparison
-    if country_str in [c.lower() for c in valid_countries]:
-        return country_str.title()  # Return the title case (e.g., 'United States')
-    return None
+    country_str = str(country).strip().lower()
+    return country_str.title() if country_str in [c.lower() for c in valid_countries] else None
 
-# Function to check if a city name is valid (considered valid if it's a string and not too short)
 def is_valid_city(city):
     city_str = str(city).strip()
-    if len(city_str) > 2:  # Cities should generally be longer than 2 characters
-        return city_str
-    return None
+    return city_str if len(city_str) > 2 else None
 
-# Function to clean the 'Country' column and check other columns if invalid
 def clean_country(row):
     if is_valid_country(row['Country']):
         return row['Country']
-
-    # Check other columns if the 'Country' column is invalid
     for col in row.index:
         valid_country = is_valid_country(row[col])
         if valid_country:
             return valid_country
-
     return 'Unknown'
 
-# Function to clean the 'City' column and check other columns if invalid
 def clean_city(row):
     if is_valid_city(row['City']):
         return row['City']
-
-    # Check other columns if the 'City' column is invalid
     for col in row.index:
         valid_city = is_valid_city(row[col])
         if valid_city:
             return valid_city
-
     return 'Unknown'
 
-# Apply the functions to clean the 'Country' and 'City' columns
 df['Country'] = df.apply(clean_country, axis=1)
 df['City'] = df.apply(clean_city, axis=1)
 
-# Known abbreviations and their expansions
-abbreviation_expansions = {
-    "NSW": "New South Wales",
-    "NYC": "New York City",
-    "LA": "Los Angeles",
-    "CA": "Canada",
-    "UK": "United Kingdom",
-    "US": "United States",
-    "AU": "Australia",
-    "FR": "France",
-}
-
-def is_real_city(city):
-    city_str = str(city).strip()
-
-    # Remove any parentheses and content inside them
-    city_str = re.sub(r'\s*\(.*?\)\s*', '', city_str)
-
-    # Check for abbreviations and expand them
-    if city_str.upper() in abbreviation_expansions:
-        city_str = abbreviation_expansions[city_str.upper()]
-
-    # Pattern to detect if the city contains numbers or invalid characters
-    if re.search(r'\d', city_str):  # Check if city contains digits
-        return False
-    if len(city_str) <= 2:  # Cities usually have more than 2 characters
-        return False
-    # Exclude city names with certain keywords
-    invalid_keywords = ['unknown', 'papers', 'negotiable', 'au$', '=', 'original']
-    if any(keyword in city_str.lower() for keyword in invalid_keywords):
-        return False
-    # Check if city is entirely uppercase (flag as abbreviation if too short)
-    if city_str.isupper() and len(city_str) <= 4:
-        return False
-    return city_str.title()
-
-# Apply the filter, remove parentheses, and convert to title case, expanding abbreviations
-df['City'] = df['City'].apply(lambda x: is_real_city(x) if is_real_city(x) else 'Unknown')
 #--------------------------------------------------------------------------------------------------------------------------------
 
+# Clean price
 def extract_currency(val):
     match = re.match(r'([A-Za-z]+)\$', str(val))
-    if match:
-        return match.group(1)
-    return None
+    return match.group(1) if match else None
 
 def clean_price(val):
     cleaned_price = re.sub(r'[^\d]', '', str(val))
@@ -329,92 +260,72 @@ df['Price'] = df.apply(correct_price, axis=1)
 
 #--------------------------------------------------------------------------------------------------------------------------------
 
+# Clean shipping price
 def clean_shipping_price(val):
-    if pd.isna(val):
-        return '0'
-    cleaned_price = re.sub(r'[^\d]', '', str(val))
-    return cleaned_price if cleaned_price else '0'
+    return re.sub(r'[^\d]', '', str(val)) if pd.notna(val) else '0'
 
 df['shipping'] = df['shipping'].apply(clean_shipping_price)
 
 #--------------------------------------------------------------------------------------------------------------------------------
 
+# Fill missing seller information
 df['Seller Information'] = df['Seller Information'].fillna('Unknown')
 
 #--------------------------------------------------------------------------------------------------------------------------------
+
+# Clean base caliber
 def clean_base_caliber(val):
     match = re.search(r'\b\d{4}\b', str(val))
-    if match:
-        return match.group(0)
-    return 'Unknown'
+    return match.group(0) if match else 'Unknown'
 
 df['Base caliber'] = df['Base caliber'].apply(clean_base_caliber)
 
 #--------------------------------------------------------------------------------------------------------------------------------
 
+# Fix dial color
 valid_colors = ['Green', 'Black', 'White', 'Silver', 'Brown', np.nan, 'Gold', 'Blue',
                 'Champagne', 'Grey', 'Pink', 'Turquoise', 'Purple', 'Mother of pearl',
-                'Bronze', 'Meteorite', 'Red', 'Yellow', 'Lines', 'Orange',
-                'Bordeaux', 'Skeletonized']
-
+                'Bronze', 'Meteorite', 'Red', 'Yellow', 'Lines', 'Orange', 'Bordeaux', 'Skeletonized']
 
 def fix_dial_color(row):
     dial_color = row['Dial']
-
-    # If the dial color is valid, return it
     if dial_color in valid_colors:
         return dial_color
-
-    other_columns = ['Case material', 'Bracelet material']
-    for col in other_columns:
+    for col in ['Case material', 'Bracelet material']:
         if row[col] in valid_colors:
             return row[col]
-
     return 'Unknown'
 
 df['Dial'] = df.apply(fix_dial_color, axis=1)
 
-df['Dial'] = df['Dial'].fillna('Unknown')
 #--------------------------------------------------------------------------------------------------------------------------------
 
+# Fix dial numerals
 valid_numerals = ['No numerals', 'Arabic numerals', 'Roman numerals', np.nan]
 
 def fix_dial_numerals(row):
     dial_numerals = row['Dial numerals']
-
     if dial_numerals in valid_numerals:
         return dial_numerals
-
-
-    other_columns = ['Case material', 'Bracelet material']  # Example of other columns to check
-    for col in other_columns:
+    for col in ['Case material', 'Bracelet material']:
         if row[col] in valid_numerals:
             return row[col]
-
-
     return np.nan
 
-df['Dial numerals'] = df.apply(fix_dial_numerals, axis=1)
-
-df['Dial numerals'] = df['Dial numerals'].replace({
+df['Dial numerals'] = df.apply(fix_dial_numerals, axis=1).replace({
     'No numerals': 'None',
     'Arabic numerals': 'Arabic',
     'Roman numerals': 'Roman'
-})
+}).fillna('Unknown')
 
-df['Dial numerals'] = df['Dial numerals'].fillna('Unknown')
 #--------------------------------------------------------------------------------------------------------------------------------
 
-df = df.drop(columns=['Scope of delivery'])
-df = df.drop(columns=['Location'])
+# Clean up columns and save files
+df = df.drop(columns=['Scope of delivery', 'Location'])
 df.rename(columns={'Seller Information': 'Seller Name'}, inplace=True)
-
-#--------------------------------------------------------------------------------------------------------------------------------
 
 excel_file_path = r'data/Cleaned_Rolex_Chrono24.xlsx'
 csv_file_path = r'data/Cleaned_Rolex_Chrono24.csv'
 df.to_excel(excel_file_path, index=False)
 df.to_csv(csv_file_path, index=False)
 print(f"DataFrame successfully saved to:\n- Excel file: {excel_file_path}\n- CSV file: {csv_file_path}")
-
-#--------------------------------------------------------------------------------------------------------------------------------
