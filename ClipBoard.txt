@@ -1,15 +1,3 @@
-import pandas as pd
-import re
-import pycountry
-import numpy as np
-
-# Load the dataset
-file_path = r'data\Chrono24_151024_excel.xlsx'
-df_og = pd.read_excel(file_path)
-df = df_og.copy()
-
-#--------------------------------------------------------------------------------------------------------------------------------
-
 # Fill missing values and replace specific Model names
 df['Model'] = df['Model'].fillna('Unknown').replace({
     'Submariner (No Date)': 'Submariner',
@@ -237,6 +225,7 @@ def clean_city(row):
 df['Country'] = df.apply(clean_country, axis=1)
 df['City'] = df.apply(clean_city, axis=1)
 
+df['City'].unique()
 #--------------------------------------------------------------------------------------------------------------------------------
 
 # Clean price
@@ -317,15 +306,3 @@ df['Dial numerals'] = df.apply(fix_dial_numerals, axis=1).replace({
     'Arabic numerals': 'Arabic',
     'Roman numerals': 'Roman'
 }).fillna('Unknown')
-
-#--------------------------------------------------------------------------------------------------------------------------------
-
-# Clean up columns and save files
-df = df.drop(columns=['Scope of delivery', 'Location'])
-df.rename(columns={'Seller Information': 'Seller Name'}, inplace=True)
-
-excel_file_path = r'data/Cleaned_Rolex_Chrono24.xlsx'
-csv_file_path = r'data/Cleaned_Rolex_Chrono24.csv'
-df.to_excel(excel_file_path, index=False)
-df.to_csv(csv_file_path, index=False)
-print(f"DataFrame successfully saved to:\n- Excel file: {excel_file_path}\n- CSV file: {csv_file_path}")

@@ -226,6 +226,13 @@ def analyze_reference(ref_num):
         "Reference Letters Meaning": reference_letter_meaning
     }
 
+
+# Analyze the reference number "126234"
+#result = analyze_reference("126234")
+
+# Print the result for this one reference
+#print(result)
+
 # Analyze all reference numbers
 results = [analyze_reference(ref_num) for ref_num in reference_numbers]
 
@@ -238,4 +245,4 @@ csv_file_path = r'data/Rolex_Reference.csv'
 results_df.to_excel(excel_file_path, index=False)
 results_df.to_csv(csv_file_path, index=False)
 
-print(f"DataFrame saved to:\n- Excel file: {excel_file_path}\n- CSV file: {csv_file_path}")
+# print(f"DataFrame saved to:\n- Excel file: {excel_file_path}\n- CSV file: {csv_file_path}")
